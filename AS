@@ -1,0 +1,170 @@
+import random  # Se debe importar el módulo random
+import numpy as np
+import matplotlib.pyplot as plt
+
+# Parámetros del barco
+capacidad_barco = 200  # toneladas de capacidad
+
+# Parámetros de Ant System
+n_hormigas = 50
+alpha = 1  # Influencia de las feromonas
+beta = 2  # Influencia de la heurística (distancia)
+evaporacion = 0.5  # Tasa de evaporación de feromonas
+feromonas_inicial = 1.0  # Valor inicial de las feromonas
+q = 100  # Cantidad de feromona depositada por cada hormiga
+
+# Generar áreas de pesca (10 áreas en coordenadas 2D)
+def generar_areas_pesca(n_areas):
+    posiciones = np.random.rand(n_areas, 2) * 100  # Coordenadas en un plano 2D
+    clima = np.random.randint(0, 10, size=n_areas)  # Índice de clima (0 a 10)
+    oleaje = np.random.randint(0, 10, size=n_areas)  # Índice de oleaje (0 a 10)
+    peces = np.random.randint(1, 150, size=n_areas)  # Cantidad de peces en cada área (0 a 100)
+    return posiciones, clima, oleaje, peces
+
+# Función para calcular la distancia euclidiana entre dos puntos
+def calcular_distancia(p1, p2):
+    return np.sqrt(np.sum((p1 - p2) ** 2))
+
+# Inicializar feromonas
+def inicializar_feromonas(n_areas):
+    return np.full((n_areas, n_areas), feromonas_inicial)
+
+# Función para evaluar la calidad de una ruta
+def evaluar_ruta(ruta, posiciones, clima, oleaje, peces, capacidad_barco):
+    distancia_total = 0
+    peces_recolectados = 0
+    carga_total = 0
+    clima_total = 0
+    oleaje_total = 0
+    
+    for i in range(len(ruta) - 1):
+        # Calcular la distancia
+        distancia_total += calcular_distancia(posiciones[ruta[i]], posiciones[ruta[i + 1]])
+        
+        # Sumar condiciones climáticas y oleaje
+        clima_total += clima[ruta[i]]
+        oleaje_total += oleaje[ruta[i]]
+        
+        # Recolectar peces si no excede la capacidad del barco
+        if carga_total + peces[ruta[i]] <= capacidad_barco:
+            peces_recolectados += peces[ruta[i]]
+            carga_total += peces[ruta[i]]
+    
+    # Sumar la distancia de regreso al punto de partida
+    distancia_total += calcular_distancia(posiciones[ruta[-1]], posiciones[ruta[0]])
+    
+    return peces_recolectados, clima_total, oleaje_total, distancia_total
+
+# Función para actualizar las feromonas
+def actualizar_feromonas(feromonas, rutas, resultados, evaporacion):
+    # Evaporación
+    feromonas *= (1 - evaporacion)
+    
+    # Depositar nuevas feromonas en función de la calidad de las rutas
+    for i, ruta in enumerate(rutas):
+        for j in range(len(ruta) - 1):
+            feromonas[ruta[j], ruta[j + 1]] += q / resultados[i]['distancia_total']
+    
+    return feromonas
+
+# Construir una solución para una hormiga
+def construir_ruta(posiciones, feromonas, n_areas, alpha, beta):
+    ruta = [random.randint(0, n_areas - 1)]  # Comienza en un área al azar
+    visitado = set(ruta)
+    
+    for _ in range(n_areas - 1):
+        actual = ruta[-1]
+        probabilidades = []
+        
+        for siguiente in range(n_areas):
+            if siguiente not in visitado:
+                tau = feromonas[actual, siguiente] ** alpha
+                eta = (1 / calcular_distancia(posiciones[actual], posiciones[siguiente])) ** beta
+                probabilidades.append(tau * eta)
+            else:
+                probabilidades.append(0)
+        
+        probabilidades = np.array(probabilidades)
+        probabilidades /= probabilidades.sum()  # Normalizar
+        
+        siguiente = np.random.choice(range(n_areas), p=probabilidades)
+        ruta.append(siguiente)
+        visitado.add(siguiente)
+    
+    return ruta
+
+# Algoritmo Ant System
+def ant_system_pesca(n_iteraciones, n_hormigas, alpha, beta, evaporacion):
+    posiciones, clima, oleaje, peces = generar_areas_pesca(n_areas=10)
+    feromonas = inicializar_feromonas(n_areas=10)
+    
+    mejor_ruta = None
+    mejor_resultado = {'peces_recolectados': 0, 'clima_total': float('inf'), 'oleaje_total': float('inf'), 'distancia_total': float('inf')}
+    
+    for _ in range(n_iteraciones):
+        rutas = []
+        resultados = []
+        
+        for _ in range(n_hormigas):
+            ruta = construir_ruta(posiciones, feromonas, n_areas=10, alpha=alpha, beta=beta)
+            peces_recolectados, clima_total, oleaje_total, distancia_total = evaluar_ruta(
+                ruta, posiciones, clima, oleaje, peces, capacidad_barco
+            )
+            resultados.append({
+                'peces_recolectados': peces_recolectados,
+                'clima_total': clima_total,
+                'oleaje_total': oleaje_total,
+                'distancia_total': distancia_total
+            })
+            rutas.append(ruta)
+        
+        # Encontrar la mejor ruta de esta iteración
+        for i, resultado in enumerate(resultados):
+            if resultado['peces_recolectados'] > mejor_resultado['peces_recolectados']:
+                mejor_ruta = rutas[i]
+                mejor_resultado = resultado
+        
+        # Actualizar las feromonas
+        feromonas = actualizar_feromonas(feromonas, rutas, resultados, evaporacion)
+    
+    return mejor_ruta, mejor_resultado, posiciones
+
+# Ejecutar el algoritmo de Ant System
+mejor_ruta, mejor_resultado, posiciones = ant_system_pesca(n_iteraciones=100, n_hormigas=50, alpha=1, beta=2, evaporacion=0.5)
+
+# Graficar la mejor ruta con los nombres de sectores marítimos
+sectores_maritimos = [
+    "Bahía Azul", "Costa Verde", "Roca del Faro", "Mar de Plata", 
+    "Isla Cristal", "Cabo Tempestad", "Ensenada Serena", 
+    "Golfo Estrella", "Punta del Sol", "Laguna Escondida"
+]
+# Graficar la mejor ruta de pesca con nombres de sectores marítimos
+def graficar_ruta_pesca(ruta, posiciones, mejor_peces, mejor_clima, mejor_oleaje, mejor_distancia, sectores_maritimos):
+    plt.figure(figsize=(10, 10))
+    
+    # Graficar los puntos de las áreas de pesca con nombres de sectores marítimos
+    for i, punto in enumerate(posiciones):
+        plt.scatter(punto[0], punto[1], color='blue', s=100)
+        plt.text(punto[0] + 1, punto[1] + 1, sectores_maritimos[i], fontsize=12)  # Nombres de sectores marítimos
+    
+    # Graficar las rutas
+    for i in range(len(ruta) - 1):
+        p1 = posiciones[ruta[i]]
+        p2 = posiciones[ruta[i + 1]]
+        plt.plot([p1[0], p2[0]], [p1[1], p2[1]], 'k--')
+    
+    # Añadir la línea de regreso al punto inicial
+    p1 = posiciones[ruta[-1]]
+    p2 = posiciones[ruta[0]]
+    plt.plot([p1[0], p2[0]], [p1[1], p2[1]], 'k--')
+    
+    # Añadir detalles
+    plt.title(f"Ruta de Pesca: Peces = {mejor_peces}, Clima = {mejor_clima}, Oleaje = {mejor_oleaje}, Distancia = {mejor_distancia:.2f}", fontsize=14)
+    plt.xlabel('Coordenada X')
+    plt.ylabel('Coordenada Y')
+    
+    plt.grid(True)
+    plt.show()
+
+
+graficar_ruta_pesca(mejor_ruta, posiciones, mejor_resultado['peces_recolectados'], mejor_resultado['clima_total'], mejor_resultado['oleaje_total'], mejor_resultado['distancia_total'], sectores_maritimos)

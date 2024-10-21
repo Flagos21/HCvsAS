@@ -1,17 +1,17 @@
 import random
 import numpy as np
 import matplotlib.pyplot as plt
+from matplotlib.animation import FuncAnimation
 
 # Parámetros del barco
 capacidad_barco = 200  # toneladas de capacidad
 
 # Generar áreas de pesca (10 áreas en coordenadas 2D)
 def generar_areas_pesca(n_areas):
-    posiciones = np.random.rand(n_areas, 2) * 100  # coordenadas en un plano 2D
+    posiciones = np.random.rand(n_areas, 2) * 100  # Coordenadas en un plano 2D
     clima = np.random.randint(0, 10, size=n_areas)  # Índice de clima (0 a 10)
     oleaje = np.random.randint(0, 10, size=n_areas)  # Índice de oleaje (0 a 10)
     peces = np.random.randint(1, 150, size=n_areas)  # Cantidad de peces en cada área (0 a 100)
-    
     return posiciones, clima, oleaje, peces
 
 # Función para calcular la distancia euclidiana entre dos puntos
@@ -42,7 +42,6 @@ def evaluar_ruta(ruta, posiciones, clima, oleaje, peces, capacidad_barco):
     # Sumar la distancia de regreso al punto de partida
     distancia_total += calcular_distancia(posiciones[ruta[-1]], posiciones[ruta[0]])
     
-    # Retornar una evaluación que minimice distancia y riesgos, y maximice peces
     return peces_recolectados, clima_total, oleaje_total, distancia_total
 
 # Generador de soluciones (rutas aleatorias)
@@ -84,34 +83,6 @@ def hill_climbing_pesca(n_rutas, max_iter=1000):
     
     return mejor_ruta, mejor_peces, mejor_clima, mejor_oleaje, mejor_distancia, posiciones
 
-# Graficar la mejor ruta de pesca con nombres de sectores marítimos
-def graficar_ruta_pesca(ruta, posiciones, mejor_peces, mejor_clima, mejor_oleaje, mejor_distancia, sectores_maritimos):
-    plt.figure(figsize=(10, 10))
-    
-    # Graficar los puntos de las áreas de pesca con nombres de sectores marítimos
-    for i, punto in enumerate(posiciones):
-        plt.scatter(punto[0], punto[1], color='blue', s=100)
-        plt.text(punto[0] + 1, punto[1] + 1, sectores_maritimos[i], fontsize=12)  # Nombres de sectores marítimos
-    
-    # Graficar las rutas
-    for i in range(len(ruta) - 1):
-        p1 = posiciones[ruta[i]]
-        p2 = posiciones[ruta[i + 1]]
-        plt.plot([p1[0], p2[0]], [p1[1], p2[1]], 'k--')
-    
-    # Añadir la línea de regreso al punto inicial
-    p1 = posiciones[ruta[-1]]
-    p2 = posiciones[ruta[0]]
-    plt.plot([p1[0], p2[0]], [p1[1], p2[1]], 'k--')
-    
-    # Añadir detalles
-    plt.title(f"Ruta de Pesca: Peces = {mejor_peces}, Clima = {mejor_clima}, Oleaje = {mejor_oleaje}, Distancia = {mejor_distancia:.2f}", fontsize=14)
-    plt.xlabel('Coordenada X')
-    plt.ylabel('Coordenada Y')
-    
-    plt.grid(True)
-    plt.show()
-
 # Lista de nombres de sectores marítimos
 sectores_maritimos = [
     "Bahía Azul", "Costa Verde", "Roca del Faro", "Mar de Plata", 
@@ -122,5 +93,30 @@ sectores_maritimos = [
 # Ejecutar el algoritmo de Hill Climbing para rutas de pesca
 mejor_ruta, mejor_peces, mejor_clima, mejor_oleaje, mejor_distancia, posiciones = hill_climbing_pesca(n_rutas=100, max_iter=1000)
 
-# Graficar la mejor ruta con los nombres de sectores marítimos
-graficar_ruta_pesca(mejor_ruta, posiciones, mejor_peces, mejor_clima, mejor_oleaje, mejor_distancia, sectores_maritimos)
+# Función para animar la simulación de la ruta de pesca
+fig, ax = plt.subplots(figsize=(10, 10))
+line, = ax.plot([], [], 'k--')  # Inicializa la línea de la ruta
+points, = ax.plot([], [], 'bo')  # Inicializa los puntos de las áreas de pesca
+
+def init():
+    # Configurar el gráfico
+    ax.set_xlim(0, 100)
+    ax.set_ylim(0, 100)
+    ax.set_title(f"Ruta de Pesca Animada: Peces = {mejor_peces}, Clima = {mejor_clima}, Oleaje = {mejor_oleaje}, Distancia = {mejor_distancia:.2f}")
+    ax.set_xlabel('Coordenada X')
+    ax.set_ylabel('Coordenada Y')
+    return line, points
+
+# Función de actualización para la animación
+def update(i):
+    xdata = [posiciones[r][0] for r in mejor_ruta[:i+1]]
+    ydata = [posiciones[r][1] for r in mejor_ruta[:i+1]]
+    line.set_data(xdata, ydata)
+    points.set_data(xdata, ydata)
+    return line, points
+
+# Crear la animación
+ani = FuncAnimation(fig, update, frames=len(mejor_ruta), init_func=init, blit=True, repeat=False)
+
+# Mostrar la animación
+plt.show()
